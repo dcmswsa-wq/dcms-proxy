@@ -1,40 +1,35 @@
-export async function handler(event, context) {
-  const targetUrl = "https://script.google.com/macros/s/AKfycbzndTrDoYFQIoviKDZebsuBt4gEQg5GXLsoXqJWS_s_PRkbvKP6NSwW3YVwfH8XP4n8/exec";
-
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
-      },
-      body: ""
-    };
-  }
+// functions/proxy.js
+export async function handler(event) {
+  const targetUrl = 'https://script.google.com/macros/s/AKfycbzndTrDoYFQIoviKDZebsuBt4gEQg5GXLsoXqJWS_s_PRkbvKP6NSwW3YVwfH8XP4n8/exec';
 
   try {
-    const response = await fetch(targetUrl, {
+    // Build fetch options dynamically
+    const fetchOptions = {
       method: event.httpMethod,
-      headers: { "Content-Type": "application/json" },
-      body: event.body
-    });
+      headers: { 'Content-Type': 'application/json' },
+    };
 
-    const data = await response.text();
+    // Only attach body if not a GET request
+    if (event.httpMethod !== 'GET' && event.body) {
+      fetchOptions.body = event.body;
+    }
+
+    const response = await fetch(targetUrl, fetchOptions);
+    const text = await response.text();
 
     return {
-      statusCode: 200,
+      statusCode: response.status,
       headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
       },
-      body: data
+      body: text,
     };
   } catch (error) {
     return {
       statusCode: 500,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ error: error.message }),
     };
   }
 }
