@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editable Affidavit Forms - Attachment Style</title>
+<style>
+:root{
+  --legal-font:"Nimbus Mono PS","Courier New","Liberation Mono","Cousine",monospace;
+  --ink:#111;
+  --page-w:210mm;
+  --page-h:297mm;
+  --left:21mm;
+  --right:17mm;
+  /* Effective printed content margins:
+     top = 20mm padding + 18mm franking reserve + 2mm gap = 40mm
+     bottom = 17mm padding + 28mm attestation reserve = 45mm */
+  --top:20mm;
+  --bottom:17mm;
+  --franking:18mm;
+  --attestation:28mm;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#e9edf1;color:var(--ink);font-family:Arial,sans-serif}
+.toolbar{
+  position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  padding:10px 14px;background:#fff;border-bottom:1px solid #cbd2d9;box-shadow:0 2px 8px rgba(0,0,0,.07)
+}
+.toolbar label{font:700 13px Arial,sans-serif}
+.toolbar select,.toolbar button{font:14px Arial,sans-serif;padding:7px 9px;border:1px solid #aeb7c1;border-radius:6px;background:#fff}
+.toolbar button{background:#1d4f7a;color:#fff;border-color:#1d4f7a;font-weight:700;cursor:pointer}
+.status{font:13px Arial,sans-serif;color:#5e6872}
+.viewport{padding:18px;overflow:auto}
+.form-wrap{display:none}
+.form-wrap.active{display:block}
+
+.paper{
+  --legal-size:11pt;
+  --legal-line:1.24;
+  --para-gap:3.0mm;
+  --heading-gap:5.4mm;
+  --recipient-gap:4.8mm;
+  position:relative;width:var(--page-w);height:var(--page-h);margin:0 auto;background:#fff;
+  padding:var(--top) var(--right) var(--bottom) var(--left);overflow:hidden;
+  box-shadow:0 4px 18px rgba(0,0,0,.14);
+  font-family:var(--legal-font);font-size:var(--legal-size);line-height:var(--legal-line);letter-spacing:0;
+}
+.paper[data-form-id="A"]{--legal-size:11.45pt;--legal-line:1.25;--para-gap:3.4mm;--heading-gap:6mm;--recipient-gap:5mm}
+.paper[data-form-id="B"]{--legal-size:11.1pt;--legal-line:1.24;--para-gap:3.0mm;--heading-gap:5.2mm;--recipient-gap:4.2mm}
+.paper[data-form-id="C"]{--legal-size:10.8pt;--legal-line:1.22;--para-gap:2.65mm;--heading-gap:4.8mm;--recipient-gap:3.8mm}
+.paper[data-form-id="D"]{--legal-size:10.8pt;--legal-line:1.22;--para-gap:2.7mm;--heading-gap:4.8mm;--recipient-gap:3.8mm}
+.paper[data-form-id="LOSS"],.paper[data-form-id="LOSS_ALIVE"]{--legal-size:10.55pt;--legal-line:1.20;--para-gap:2.45mm;--heading-gap:4.3mm;--recipient-gap:3.5mm}
+
+.franking-zone{
+  height:var(--franking);display:flex;align-items:center;justify-content:center;
+  margin:0 0 2mm 0;border:1px dashed #ccd1d6;color:#8d959d;font:10px Arial,sans-serif
+}
+.legal-heading{text-align:center;font-size:1.15em;line-height:1.12;margin:0 0 var(--heading-gap) 0;font-weight:700;letter-spacing:.02em;border:0!important;padding-top:0!important;padding-bottom:0!important}
+.legal-heading .subheading{font-size:1em;margin-top:.8mm;font-weight:700;border:0!important;padding-bottom:0!important}
+.loss-title{font-weight:700;font-size:1.08em;letter-spacing:.025em}
+
+/* restrained, form-specific legal-document treatment */
+.paper[data-form-id="A"] .legal-heading .subheading{display:inline-block}
+.paper[data-form-id="B"] .legal-heading{border:0;padding:0}
+.paper[data-form-id="C"] .legal-heading{letter-spacing:.06em}
+.paper[data-form-id="C"] p:not(.verification){text-indent:4mm}
+.paper[data-form-id="D"] .legal-heading{border:0;padding:0}
+.paper[data-form-id="D"] p:not(.verification){text-indent:3mm}
+.paper[data-form-id="LOSS"] .legal-heading,.paper[data-form-id="LOSS_ALIVE"] .legal-heading{border:0;padding:0}
+
+.recipient{margin:0 0 var(--recipient-gap) 0;line-height:1.18}
+.line-field{
+  display:inline-block;border:0;border-bottom:1px solid #666;background:transparent;
+  font:inherit;color:inherit;padding:0 2px 1px;margin:.35mm 0;min-width:36px;max-width:100%;height:1.48em;line-height:1.16
+}
+.salutation{margin-bottom:calc(var(--para-gap) + .3mm)!important;text-indent:0!important}
+p{margin:0 0 var(--para-gap) 0;text-align:justify;text-justify:inter-word;orphans:2;widows:2}
+.numbered{padding-left:6mm;position:relative;text-indent:0!important}
+.numbered>span:first-child{position:absolute;left:0}
+.inline-field,.title-select,.rel-select,.choice-select{
+  display:inline-block;vertical-align:baseline;font:inherit;color:inherit;background:#fff;
+  border:0;border-bottom:1px solid #555;border-radius:0;padding:0 2px 1px;margin:0 .5px;height:1.45em;line-height:1.15;
+  min-width:30px;max-width:100%;white-space:nowrap
+}
+.title-select{min-width:48px}
+.rel-select{min-width:48px}
+.choice-select{min-width:70px}
+input[type=date]{min-width:106px}
+input[type=number]{appearance:textfield;-moz-appearance:textfield}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input::placeholder{color:#777;opacity:1;font-family:var(--legal-font);font-size:.86em;font-weight:400}
+select{font-family:var(--legal-font);font-size:.96em}
+.inline-field,.line-field,.title-select,.rel-select,.choice-select{caret-color:#111}
+.inline-field:required:invalid,.line-field:required:invalid,.title-select:required:invalid,.rel-select:required:invalid,.choice-select:required:invalid{border-bottom-color:#777}
+.inline-field:valid,.line-field:valid,.title-select:valid,.rel-select:valid,.choice-select:valid{border-bottom-color:#222}
+.inline-field:focus,.line-field:focus,.title-select:focus,.rel-select:focus,.choice-select:focus{outline:1px solid #7598b8;outline-offset:1px}
+
+.verification{
+  margin:calc(var(--para-gap) + .5mm) auto var(--para-gap)!important;
+  width:92%;text-align:center!important;text-indent:0!important;line-height:1.22;
+}
+.verification-title{display:block;font-weight:700;letter-spacing:.08em;margin-bottom:1mm;text-align:center}
+
+.closing{
+  position:absolute;left:var(--left);right:var(--right);bottom:calc(var(--bottom) + var(--attestation));
+  display:flex;justify-content:space-between;align-items:flex-end;gap:12mm
+}
+
+/* Keep signature/deponent area just above the 45mm bottom reserve so the
+   available A4 page height is used efficiently on every form. */
+.closing-left{width:48%;line-height:1.5}
+.closing-right{width:44%;text-align:center}
+.faithfully{margin-bottom:0}
+.signature-gap{height:7mm}
+.typed-name .inline-field{text-align:center;border-bottom:0;min-width:86px}
+.attestation-zone{
+  position:absolute;left:var(--left);right:var(--right);bottom:var(--bottom);height:var(--attestation);
+  border:1px dashed #ccd1d6;display:flex;align-items:center;justify-content:center;
+  color:#8d959d;font:10px Arial,sans-serif
+}
+.form-actions{width:210mm;margin:11px auto 28px;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.form-note{margin-right:auto;font:13px Arial,sans-serif;color:#5e6872}
+.print-btn{font:700 14px Arial,sans-serif;padding:10px 16px;border:0;border-radius:6px;background:#1d4f7a;color:#fff;cursor:pointer}
+.print-btn:disabled{opacity:.42;cursor:not-allowed}
+.print-value{display:none}
+
+@media(max-width:850px){
+  .toolbar{position:static}.viewport{padding:8px}
+  .paper{width:100%;height:auto;min-height:1050px;padding:18px 16px;box-shadow:none;overflow:visible}
+  .franking-zone{height:80px}.closing{position:static;margin-top:20px}.attestation-zone{position:static;height:110px;margin-top:20px}
+  .form-actions{width:100%;padding:0 8px}.line-field{max-width:100%}
+}
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  html,body{width:210mm;height:297mm;background:#fff}
+  .toolbar,.form-actions,.status{display:none!important}
+  .viewport{padding:0;margin:0;overflow:visible}
+  .form-wrap{display:none!important;margin:0!important;padding:0!important}
+  .form-wrap.print-target{display:block!important}
+  .paper{
+    width:210mm;height:297mm;margin:0;box-shadow:none;overflow:hidden;
+    padding:var(--top) var(--right) var(--bottom) var(--left);
+    font-family:var(--legal-font)!important;font-size:var(--legal-size);line-height:var(--legal-line);letter-spacing:0;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact
+  }
+  .franking-zone,.attestation-zone{border:0!important;color:transparent!important}
+  input,select,button{display:none!important}
+  .print-value{
+    display:inline!important;font-family:var(--legal-font)!important;font:inherit;font-weight:700!important;color:#000!important;
+    border:0!important;background:transparent!important;padding:0!important;margin:0!important;white-space:normal
+  }
+  .print-value.line-print{display:inline-block!important;min-width:0;max-width:100%;margin:.35mm 0!important}
+  .typed-name .print-value{font-weight:700!important;text-align:center}
+  .verification,.verification-title{text-align:center!important}
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <label for="formPicker">Form</label>
+  <select id="formPicker"><option value="A">Annexure A</option>
+<option value="B">Annexure B</option>
+<option value="C">Annexure C</option>
+<option value="D">Annexure D</option>
+<option value="LOSS">Loss of SV - After Death</option>
+<option value="LOSS_ALIVE">Loss of SV - Consumer Alive</option></select>
+  <span id="completion" class="status"></span>
+  <span id="fit" class="status"></span>
+</div>
+<div class="viewport">
+
+        <div class="form-wrap active" data-form-id="A">
+          <form novalidate>
+            
+    <section class="paper " data-form-id="A">
+      <div class="franking-zone"><span>Reserved for franking / e-stamp after printing</span></div>
+      <header class="legal-heading"><div>Annexure A</div><div class='subheading'>(LETTER)</div></header>
+      
+
+    <div class="recipient">
+      <div>To,</div>
+      <div><input name="a_dist_name" type="text" class="line-field" placeholder="Distributor Name" data-min="245" data-max="360" autocomplete="off" data-sync="dist_name" required></div>
+      <div><input name="a_dist_addr1" type="text" class="line-field" placeholder="Distributor Address" data-min="245" data-max="360" autocomplete="off" data-sync="dist_addr1" required></div>
+      <div><input name="a_dist_addr2" type="text" class="line-field" placeholder="City / District" data-min="210" data-max="330" autocomplete="off" data-sync="dist_addr2"></div>
+    </div>
+    
+<p class="salutation">Dear Sir/Madam,</p>
+
+<p>
+I, <select name="a_title" class="title-select" required data-sync="a_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="a_name" type="text" class="inline-field" placeholder="Full Name" data-min="95" data-max="205" autocomplete="off" data-sync="a_name" required>,
+<select name="a_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="a_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="100" data-max="205" autocomplete="off" required>,
+H. No. <input name="a_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>, Village <input name="a_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="145" autocomplete="off" required>,
+Mandal <input name="a_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="145" autocomplete="off" required>, District <input name="a_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="145" autocomplete="off" required>,
+Telangana State, hereby solemnly affirm and state as follows:
+</p>
+
+<p>
+That I have the LPG equipment covered under Subscription Voucher No.
+<input name="a_sv" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" required> and Consumer No. <input name="a_cons" type="text" class="inline-field" placeholder="Consumer No." data-min="70" data-max="125" autocomplete="off" required>.
+As I am no longer in need of the same, I request that it be transferred to
+<select name="a_tr_title" class="title-select" required data-sync="a_tr_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="a_tr_name" type="text" class="inline-field" placeholder="Transferee Name" data-min="100" data-max="205" autocomplete="off" data-sync="a_tr_name" required>,
+<select name="a_tr_rel" class="rel-select" required data-sync="a_tr_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="a_tr_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="205" autocomplete="off" data-sync="a_tr_related" required>.
+</p>
+
+<p>
+I request that a fresh Consumer Number and Subscription Voucher be issued in the transferee's name.
+</p>
+
+<p>
+I hereby authorize the distributor to hand over or transfer the deposit amount held in my name to
+<select name="a_tr_title2" class="title-select" required data-sync="a_tr_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="a_tr_name2" type="text" class="inline-field" placeholder="Transferee Name" data-min="100" data-max="205" autocomplete="off" data-sync="a_tr_name" required>,
+<select name="a_tr_rel2" class="rel-select" required data-sync="a_tr_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="a_tr_related2" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="205" autocomplete="off" data-sync="a_tr_related" required>.
+I shall not make any later claim in respect of either the LPG equipment or the related security deposit.
+</p>
+
+<p>Thank you,</p>
+
+      
+    <div class="closing">
+      <div class="closing-left">
+        <div>Date&nbsp;&nbsp;: <input name="a_date" type="date" class="inline-field" placeholder="Date" data-min="92" data-max="130" autocomplete="off" required></div>
+        <div>Place : <input name="a_place" type="text" class="inline-field" placeholder="Place" data-min="90" data-max="170" autocomplete="off" required></div>
+      </div>
+      <div class="closing-right">
+        <div class="faithfully">Yours faithfully</div>
+        <div class="signature-gap"></div>
+        <div class="typed-name">(<input name="a_sign_name" type="text" class="inline-field" placeholder="Name" data-min="130" data-max="230" autocomplete="off" data-sync="a_name" required>)</div>
+      </div>
+    </div>
+    
+      <div class="attestation-zone"><span>Reserved for physical attestation / notary seal after printing</span></div>
+    </section>
+    
+            <div class="form-actions">
+              <div class="form-note">Franking/e-stamp and physical attestation are intentionally left for after printing.</div>
+              <button type="button" class="print-btn" disabled>Print Affidavit</button>
+            </div>
+          </form>
+        </div>
+        
+        <div class="form-wrap" data-form-id="B">
+          <form novalidate>
+            
+    <section class="paper " data-form-id="B">
+      <div class="franking-zone"><span>Reserved for franking / e-stamp after printing</span></div>
+      <header class="legal-heading"><div>Annexure B</div><div class='subheading'>(AFFIDAVIT)</div></header>
+      
+
+    <div class="recipient">
+      <div>To,</div>
+      <div><input name="b_dist_name" type="text" class="line-field" placeholder="Distributor Name" data-min="245" data-max="360" autocomplete="off" data-sync="dist_name" required></div>
+      <div><input name="b_dist_addr1" type="text" class="line-field" placeholder="Distributor Address" data-min="245" data-max="360" autocomplete="off" data-sync="dist_addr1" required></div>
+      <div><input name="b_dist_addr2" type="text" class="line-field" placeholder="City / District" data-min="210" data-max="330" autocomplete="off" data-sync="dist_addr2"></div>
+    </div>
+    
+<p class="salutation">Dear Sir/Madam,</p>
+
+<p>
+I, <select name="b_title" class="title-select" required data-sync="b_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="b_name" type="text" class="inline-field" placeholder="Full Name" data-min="95" data-max="205" autocomplete="off" data-sync="b_name" required>,
+<select name="b_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="b_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="100" data-max="205" autocomplete="off" required>,
+residing at H. No. <input name="b_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>, Village <input name="b_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="145" autocomplete="off" required>,
+Mandal <input name="b_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="145" autocomplete="off" required>, District <input name="b_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="145" autocomplete="off" required>,
+Telangana State, hereby solemnly affirm and state as follows:
+</p>
+
+<p>
+That I have the LPG equipment covered under Subscription Voucher No.
+<input name="b_sv" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" data-sync="b_sv" required> dated <input name="b_sv_date" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" data-sync="b_sv_date" required>,
+Consumer No. <input name="b_cons" type="text" class="inline-field" placeholder="Consumer No." data-min="70" data-max="125" autocomplete="off" data-sync="b_cons" required>.
+</p>
+
+<p>
+Since <select name="b_old_title" class="title-select" required data-sync="b_old_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="b_old_name" type="text" class="inline-field" placeholder="Existing Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="b_old_name" required>,
+<select name="b_old_rel" class="rel-select" required data-sync="b_old_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="b_old_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="205" autocomplete="off" data-sync="b_old_related" required>
+does not intend to make use of the said equipment, I request that the LPG connection be transferred to my name and that a fresh Consumer Number and Subscription Voucher be issued to me.
+</p>
+
+<p>
+Subscription Voucher No. <input name="b_sv2" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" data-sync="b_sv" required>
+dated <input name="b_sv_date2" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" data-sync="b_sv_date" required>
+and Consumer No. <input name="b_cons2" type="text" class="inline-field" placeholder="Consumer No." data-min="70" data-max="125" autocomplete="off" data-sync="b_cons" required> are hereby surrendered.
+</p>
+
+<p>
+I confirm that I shall submit the documents required for the transfer and pay the deposit for the LPG equipment in accordance with the distributor's applicable terms.
+</p>
+
+<p>
+I hereby undertake to indemnify the distributor against any later claim by
+<select name="b_old_title2" class="title-select" required data-sync="b_old_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="b_old_name2" type="text" class="inline-field" placeholder="Existing Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="b_old_name" required>,
+<select name="b_old_rel2" class="rel-select" required data-sync="b_old_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="b_old_related2" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="205" autocomplete="off" data-sync="b_old_related" required>
+in respect of the LPG equipment or security deposit covered by the aforesaid Subscription Voucher.
+</p>
+<p class="verification"><span class="verification-title">VERIFICATION</span>
+I verify that the contents of this affidavit are true and correct to the best of my knowledge and belief and that nothing material has been concealed.
+</p>
+
+
+      
+    <div class="closing">
+      <div class="closing-left">
+        <div>Date&nbsp;&nbsp;: <input name="b_date" type="date" class="inline-field" placeholder="Date" data-min="92" data-max="130" autocomplete="off" required></div>
+        <div>Place : <input name="b_place" type="text" class="inline-field" placeholder="Place" data-min="90" data-max="170" autocomplete="off" required></div>
+      </div>
+      <div class="closing-right">
+        <div class="faithfully">DEPONENT</div>
+        <div class="signature-gap"></div>
+        <div class="typed-name">(<input name="b_sign_name" type="text" class="inline-field" placeholder="Name" data-min="130" data-max="230" autocomplete="off" data-sync="b_name" required>)</div>
+      </div>
+    </div>
+    
+      <div class="attestation-zone"><span>Reserved for physical attestation / notary seal after printing</span></div>
+    </section>
+    
+            <div class="form-actions">
+              <div class="form-note">Franking/e-stamp and physical attestation are intentionally left for after printing.</div>
+              <button type="button" class="print-btn" disabled>Print Affidavit</button>
+            </div>
+          </form>
+        </div>
+        
+        <div class="form-wrap" data-form-id="C">
+          <form novalidate>
+            
+    <section class="paper " data-form-id="C">
+      <div class="franking-zone"><span>Reserved for franking / e-stamp after printing</span></div>
+      <header class="legal-heading"><div>Annexure C</div><div class='subheading'>(AFFIDAVIT)</div></header>
+      
+
+    <div class="recipient">
+      <div>To,</div>
+      <div><input name="c_dist_name" type="text" class="line-field" placeholder="Distributor Name" data-min="245" data-max="360" autocomplete="off" data-sync="dist_name" required></div>
+      <div><input name="c_dist_addr1" type="text" class="line-field" placeholder="Distributor Address" data-min="245" data-max="360" autocomplete="off" data-sync="dist_addr1" required></div>
+      <div><input name="c_dist_addr2" type="text" class="line-field" placeholder="City / District" data-min="210" data-max="330" autocomplete="off" data-sync="dist_addr2"></div>
+    </div>
+    
+<p class="salutation">Dear Sir/Madam,</p>
+
+<p>
+I, <select name="c_title" class="title-select" required data-sync="c_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="c_name" type="text" class="inline-field" placeholder="Full Name" data-min="95" data-max="205" autocomplete="off" data-sync="c_name" required>,
+<select name="c_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="c_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" required>,
+aged <input name="c_age" type="number" class="inline-field" placeholder="Age" data-min="42" data-max="65" autocomplete="off" required> years, residing at H. No. <input name="c_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>,
+Village <input name="c_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="140" autocomplete="off" required>, Mandal <input name="c_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="140" autocomplete="off" required>,
+District <input name="c_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="140" autocomplete="off" required>, Telangana State, hereby solemnly affirm and state as follows:
+</p>
+
+<p>
+That <select name="c_old_title" class="title-select" required data-sync="c_old_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="c_old_name" type="text" class="inline-field" placeholder="Existing Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="c_old_name" required>,
+<select name="c_old_rel" class="rel-select" required data-sync="c_old_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="c_old_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" data-sync="c_old_related" required>,
+who resided at H. No. <input name="c_old_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>, Village <input name="c_old_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="135" autocomplete="off" required>,
+Mandal <input name="c_old_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="135" autocomplete="off" required>, District <input name="c_old_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="135" autocomplete="off" required>,
+left with me the LPG equipment covered under Subscription Voucher No.
+<input name="c_sv" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" data-sync="c_sv" required> dated <input name="c_sv_date" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" data-sync="c_sv_date" required>.
+</p>
+
+<p>
+Since <select name="c_old_title2" class="title-select" required data-sync="c_old_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="c_old_name2" type="text" class="inline-field" placeholder="Existing Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="c_old_name" required>,
+<select name="c_old_rel2" class="rel-select" required data-sync="c_old_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="c_old_related2" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" data-sync="c_old_related" required>
+does not intend to make use of the said equipment, I request that the LPG connection be transferred to my name and that a fresh Consumer Number be issued. I am unable to obtain a consent letter from the original consumer.
+</p>
+
+<p>
+Subscription Voucher No. <input name="c_sv2" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" data-sync="c_sv" required> dated
+<input name="c_sv_date2" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" data-sync="c_sv_date" required> is hereby surrendered.
+</p>
+
+<p>
+I confirm that I shall submit the documents required for the transfer and pay the deposit for the LPG equipment in accordance with the distributor's applicable terms.
+</p>
+
+<p>
+I hereby undertake to indemnify the distributor against any later claim by the original consumer in respect of the LPG equipment or security deposit covered by the aforesaid Subscription Voucher.
+</p>
+<p class="verification"><span class="verification-title">VERIFICATION</span>
+I verify that the contents of this affidavit are true and correct to the best of my knowledge and belief and that nothing material has been concealed.
+</p>
+
+
+      
+    <div class="closing">
+      <div class="closing-left">
+        <div>Date&nbsp;&nbsp;: <input name="c_date" type="date" class="inline-field" placeholder="Date" data-min="92" data-max="130" autocomplete="off" required></div>
+        <div>Place : <input name="c_place" type="text" class="inline-field" placeholder="Place" data-min="90" data-max="170" autocomplete="off" required></div>
+      </div>
+      <div class="closing-right">
+        <div class="faithfully">DEPONENT</div>
+        <div class="signature-gap"></div>
+        <div class="typed-name">(<input name="c_sign_name" type="text" class="inline-field" placeholder="Name" data-min="130" data-max="230" autocomplete="off" data-sync="c_name" required>)</div>
+      </div>
+    </div>
+    
+      <div class="attestation-zone"><span>Reserved for physical attestation / notary seal after printing</span></div>
+    </section>
+    
+            <div class="form-actions">
+              <div class="form-note">Franking/e-stamp and physical attestation are intentionally left for after printing.</div>
+              <button type="button" class="print-btn" disabled>Print Affidavit</button>
+            </div>
+          </form>
+        </div>
+        
+        <div class="form-wrap" data-form-id="D">
+          <form novalidate>
+            
+    <section class="paper " data-form-id="D">
+      <div class="franking-zone"><span>Reserved for franking / e-stamp after printing</span></div>
+      <header class="legal-heading"><div>Annexure D</div><div class='subheading'>(AFFIDAVIT)</div></header>
+      
+
+    <div class="recipient">
+      <div>To,</div>
+      <div><input name="d_dist_name" type="text" class="line-field" placeholder="Distributor Name" data-min="245" data-max="360" autocomplete="off" data-sync="dist_name" required></div>
+      <div><input name="d_dist_addr1" type="text" class="line-field" placeholder="Distributor Address" data-min="245" data-max="360" autocomplete="off" data-sync="dist_addr1" required></div>
+      <div><input name="d_dist_addr2" type="text" class="line-field" placeholder="City / District" data-min="210" data-max="330" autocomplete="off" data-sync="dist_addr2"></div>
+    </div>
+    
+<p class="salutation">Respected Sir/Madam,</p>
+
+<p>
+I, <select name="d_title" class="title-select" required data-sync="d_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="d_name" type="text" class="inline-field" placeholder="Full Name" data-min="95" data-max="205" autocomplete="off" data-sync="d_name" required>,
+<select name="d_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="d_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" required>,
+aged <input name="d_age" type="number" class="inline-field" placeholder="Age" data-min="42" data-max="65" autocomplete="off" required> years, residing at H. No. <input name="d_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>,
+Village <input name="d_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="140" autocomplete="off" required>, Mandal <input name="d_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="140" autocomplete="off" required>,
+District <input name="d_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="140" autocomplete="off" required>, Telangana State, hereby solemnly affirm and state as follows:
+</p>
+
+<p>
+That my <input name="d_relation_to_deceased" type="text" class="inline-field" placeholder="Relationship" data-min="70" data-max="150" autocomplete="off" required>
+<select name="d_dec_title" class="title-select" required data-sync="d_dec_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="d_dec_name" type="text" class="inline-field" placeholder="Deceased Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="d_dec_name" required>,
+<select name="d_dec_rel" class="rel-select" required data-sync="d_dec_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="d_dec_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" data-sync="d_dec_related" required>
+was in possession of an LPG connection from the above distributor under Subscription Voucher No.
+<input name="d_sv" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" required> dated <input name="d_sv_date" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" required>,
+Consumer No. <input name="d_cons" type="text" class="inline-field" placeholder="Consumer No." data-min="70" data-max="125" autocomplete="off" required>.
+</p>
+
+<p>
+That <select name="d_dec_title2" class="title-select" required data-sync="d_dec_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="d_dec_name2" type="text" class="inline-field" placeholder="Deceased Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="d_dec_name" required>,
+<select name="d_dec_rel2" class="rel-select" required data-sync="d_dec_rel">
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="d_dec_related2" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" data-sync="d_dec_related" required>
+passed away on <input name="d_death" type="date" class="inline-field" placeholder="Date of Death" data-min="85" data-max="130" autocomplete="off" required>. An attested copy of the death certificate is enclosed.
+</p>
+
+<p>
+Being the <input name="d_capacity" type="text" class="inline-field" placeholder="Relationship / Capacity" data-min="85" data-max="165" autocomplete="off" required> of the deceased consumer, I request that the LPG connection be transferred to my name.
+</p>
+
+<p>
+I confirm that I shall submit the documents required for the transfer and pay the deposit for the LPG equipment in accordance with the distributor's applicable terms.
+</p>
+
+<p>
+I hereby undertake to indemnify the distributor against any claim by any other person at a later date regarding the transfer of the said LPG connection into my name.
+</p>
+
+<p>Thank you,</p>
+<p class="verification"><span class="verification-title">VERIFICATION</span>
+I verify that the contents of this affidavit are true and correct to the best of my knowledge and belief and that nothing material has been concealed.
+</p>
+
+
+      
+    <div class="closing">
+      <div class="closing-left">
+        <div>Date&nbsp;&nbsp;: <input name="d_date" type="date" class="inline-field" placeholder="Date" data-min="92" data-max="130" autocomplete="off" required></div>
+        <div>Place : <input name="d_place" type="text" class="inline-field" placeholder="Place" data-min="90" data-max="170" autocomplete="off" required></div>
+      </div>
+      <div class="closing-right">
+        <div class="faithfully">Yours faithfully</div>
+        <div class="signature-gap"></div>
+        <div class="typed-name">(<input name="d_sign_name" type="text" class="inline-field" placeholder="Name" data-min="130" data-max="230" autocomplete="off" data-sync="d_name" required>)</div>
+      </div>
+    </div>
+    
+      <div class="attestation-zone"><span>Reserved for physical attestation / notary seal after printing</span></div>
+    </section>
+    
+            <div class="form-actions">
+              <div class="form-note">Franking/e-stamp and physical attestation are intentionally left for after printing.</div>
+              <button type="button" class="print-btn" disabled>Print Affidavit</button>
+            </div>
+          </form>
+        </div>
+        
+        <div class="form-wrap" data-form-id="LOSS">
+          <form novalidate>
+            
+    <section class="paper loss-sheet" data-form-id="LOSS">
+      <div class="franking-zone"><span>Reserved for franking / e-stamp after printing</span></div>
+      <header class="legal-heading"><div class='loss-title'>AFFIDAVIT FOR LOSS OF SUBSCRIPTION VOUCHER</div></header>
+      
+
+    <div class="recipient">
+      <div>To,</div>
+      <div><input name="l_dist_name" type="text" class="line-field" placeholder="Distributor Name" data-min="245" data-max="360" autocomplete="off" data-sync="dist_name" required></div>
+      <div><input name="l_dist_addr1" type="text" class="line-field" placeholder="Distributor Address" data-min="245" data-max="360" autocomplete="off" data-sync="dist_addr1" required></div>
+      <div><input name="l_dist_addr2" type="text" class="line-field" placeholder="City / District" data-min="210" data-max="330" autocomplete="off" data-sync="dist_addr2"></div>
+    </div>
+    
+
+<p>
+I, <select name="l_title" class="title-select" required data-sync="l_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="l_name" type="text" class="inline-field" placeholder="Full Name" data-min="95" data-max="205" autocomplete="off" data-sync="l_name" required>,
+<select name="l_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="l_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" required>,
+aged <input name="l_age" type="number" class="inline-field" placeholder="Age" data-min="42" data-max="65" autocomplete="off" required> years, an Indian inhabitant residing at H. No.
+<input name="l_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>, Village <input name="l_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="140" autocomplete="off" required>,
+Mandal <input name="l_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="140" autocomplete="off" required>, District <input name="l_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="140" autocomplete="off" required>,
+State <input name="l_state" type="text" class="inline-field" placeholder="State" data-min="60" data-max="120" autocomplete="off" required>, PIN <input name="l_pin" type="text" class="inline-field" placeholder="PIN" data-min="55" data-max="85" autocomplete="off" required>, hereby solemnly affirm and state as follows:
+</p>
+
+<p class="numbered"><span>1.</span>
+That <select name="l_cons_title" class="title-select" required data-sync="l_cons_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="l_cons_name" type="text" class="inline-field" placeholder="Consumer Name" data-min="100" data-max="205" autocomplete="off" data-sync="l_cons_name" required>,
+<select name="l_cons_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="l_cons_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" required>
+is/was a consumer of HP Gas for domestic use at the above address
+since <input name="l_since" type="date" class="inline-field" placeholder="Connection Date" data-min="85" data-max="130" autocomplete="off" required>. Consumer No.
+<input name="l_cons_no" type="text" class="inline-field" placeholder="Consumer No." data-min="70" data-max="125" autocomplete="off" required> was issued Subscription Voucher No.
+<input name="l_sv" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" required> dated <input name="l_sv_date" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" required>
+by Hindustan Petroleum Corporation Limited through the above distributor, towards
+<input name="l_cyl" type="number" class="inline-field" placeholder="No." data-min="42" data-max="65" autocomplete="off" required> gas cylinder(s) and a regulator on loan against a refundable deposit of Rs.
+<input name="l_deposit" type="number" class="inline-field" placeholder="Deposit" data-min="65" data-max="105" autocomplete="off" required>.
+</p>
+
+<p class="numbered"><span>2.</span>
+That I cannot produce the Subscription Voucher to obtain the Termination Voucher because it is
+<select name="l_loss_state" class="choice-select" required>
+  <option value="" disabled selected>Select</option>
+  <option value="misplaced">misplaced</option>
+  <option value="lost">lost</option>
+</select>.
+</p>
+
+<p class="numbered"><span>3.</span>
+That I shall be liable to Hindustan Petroleum Corporation Limited and/or the distributor for any loss or expense incurred if any other person produces the above-referred Subscription Voucher and claims any amount or other benefit on its basis.
+</p>
+
+<p class="verification"><span class="verification-title">VERIFICATION</span>
+I verify that the contents of paragraphs 1 to 3 above are true and correct to the best of my knowledge and belief and that nothing material has been concealed.
+</p>
+
+      
+    <div class="closing">
+      <div class="closing-left">
+        <div>Date&nbsp;&nbsp;: <input name="l_date" type="date" class="inline-field" placeholder="Date" data-min="92" data-max="130" autocomplete="off" required></div>
+        <div>Place : <input name="l_place" type="text" class="inline-field" placeholder="Place" data-min="90" data-max="170" autocomplete="off" required></div>
+      </div>
+      <div class="closing-right">
+        <div class="faithfully">DEPONENT</div>
+        <div class="signature-gap"></div>
+        <div class="typed-name">(<input name="l_sign_name" type="text" class="inline-field" placeholder="Name" data-min="130" data-max="230" autocomplete="off" data-sync="l_name" required>)</div>
+      </div>
+    </div>
+    
+      <div class="attestation-zone"><span>Reserved for physical attestation / notary seal after printing</span></div>
+    </section>
+    
+            <div class="form-actions">
+              <div class="form-note">Franking/e-stamp and physical attestation are intentionally left for after printing.</div>
+              <button type="button" class="print-btn" disabled>Print Affidavit</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="form-wrap" data-form-id="LOSS_ALIVE">
+          <form novalidate>
+
+    <section class="paper loss-sheet" data-form-id="LOSS_ALIVE">
+      <div class="franking-zone"><span>Reserved for franking / e-stamp after printing</span></div>
+      <header class="legal-heading"><div class='loss-title'>AFFIDAVIT FOR LOSS OF SUBSCRIPTION VOUCHER</div><div class='subheading'>(CONSUMER ALIVE)</div></header>
+
+    <div class="recipient">
+      <div>To,</div>
+      <div><input name="la_dist_name" type="text" class="line-field" placeholder="Distributor Name" data-min="245" data-max="360" autocomplete="off" data-sync="dist_name" required></div>
+      <div><input name="la_dist_addr1" type="text" class="line-field" placeholder="Distributor Address" data-min="245" data-max="360" autocomplete="off" data-sync="dist_addr1" required></div>
+      <div><input name="la_dist_addr2" type="text" class="line-field" placeholder="City / District" data-min="210" data-max="330" autocomplete="off" data-sync="dist_addr2"></div>
+    </div>
+
+<p>
+I, <select name="la_title" class="title-select" required data-sync="la_title">
+      <option value="" disabled selected>Title</option>
+      <option value="Mr.">Mr.</option>
+      <option value="Mrs.">Mrs.</option>
+      <option value="Miss">Miss</option>
+    </select> <input name="la_name" type="text" class="inline-field" placeholder="Full Name" data-min="95" data-max="205" autocomplete="off" data-sync="la_name" required>,
+<select name="la_rel" class="rel-select" required>
+      <option value="" disabled selected>S/D/W</option>
+      <option value="S/o">S/o</option>
+      <option value="D/o">D/o</option>
+      <option value="W/o">W/o</option>
+    </select> <input name="la_related" type="text" class="inline-field" placeholder="Parent / Spouse Name" data-min="95" data-max="200" autocomplete="off" required>,
+aged <input name="la_age" type="number" class="inline-field" placeholder="Age" data-min="42" data-max="65" autocomplete="off" required> years, an Indian inhabitant residing at H. No.
+<input name="la_house" type="text" class="inline-field" placeholder="H. No." data-min="50" data-max="95" autocomplete="off" required>, Village <input name="la_village" type="text" class="inline-field" placeholder="Village" data-min="65" data-max="140" autocomplete="off" required>,
+Mandal <input name="la_mandal" type="text" class="inline-field" placeholder="Mandal" data-min="65" data-max="140" autocomplete="off" required>, District <input name="la_district" type="text" class="inline-field" placeholder="District" data-min="65" data-max="140" autocomplete="off" required>,
+State <input name="la_state" type="text" class="inline-field" placeholder="State" data-min="60" data-max="120" autocomplete="off" required>, PIN <input name="la_pin" type="text" class="inline-field" placeholder="PIN" data-min="55" data-max="85" autocomplete="off" required>, hereby solemnly affirm and state as follows:
+</p>
+
+<p class="numbered"><span>1.</span>
+That I am a consumer of HP Gas for domestic use at the above address since <input name="la_since" type="date" class="inline-field" placeholder="Connection Date" data-min="85" data-max="130" autocomplete="off" required>.
+My Consumer No. <input name="la_cons_no" type="text" class="inline-field" placeholder="Consumer No." data-min="70" data-max="125" autocomplete="off" required> was issued Subscription Voucher No.
+<input name="la_sv" type="text" class="inline-field" placeholder="SV No." data-min="65" data-max="120" autocomplete="off" required> dated <input name="la_sv_date" type="date" class="inline-field" placeholder="Date" data-min="82" data-max="125" autocomplete="off" required>
+by Hindustan Petroleum Corporation Limited through the above distributor, towards <input name="la_cyl" type="number" class="inline-field" placeholder="No." data-min="42" data-max="65" autocomplete="off" required> gas cylinder(s) and a regulator on loan against a refundable deposit of Rs.
+<input name="la_deposit" type="number" class="inline-field" placeholder="Deposit" data-min="65" data-max="105" autocomplete="off" required>.
+</p>
+
+<p class="numbered"><span>2.</span>
+That I cannot produce the Subscription Voucher to obtain the Termination Voucher because it is
+<select name="la_loss_state" class="choice-select" required>
+  <option value="" disabled selected>Select</option>
+  <option value="misplaced">misplaced</option>
+  <option value="lost">lost</option>
+</select>.
+</p>
+
+<p class="numbered"><span>3.</span>
+That I shall be liable to Hindustan Petroleum Corporation Limited and/or the distributor for any loss or expense incurred if any other person produces the above-referred Subscription Voucher and claims any amount or other benefit on its basis.
+</p>
+
+<p class="verification"><span class="verification-title">VERIFICATION</span>
+I verify that the contents of paragraphs 1 to 3 above are true and correct to the best of my knowledge and belief and that nothing material has been concealed.
+</p>
+
+    <div class="closing">
+      <div class="closing-left">
+        <div>Date&nbsp;&nbsp;: <input name="la_date" type="date" class="inline-field" placeholder="Date" data-min="92" data-max="130" autocomplete="off" required></div>
+        <div>Place : <input name="la_place" type="text" class="inline-field" placeholder="Place" data-min="90" data-max="170" autocomplete="off" required></div>
+      </div>
+      <div class="closing-right">
+        <div class="faithfully">DEPONENT</div>
+        <div class="signature-gap"></div>
+        <div class="typed-name">(<input name="la_sign_name" type="text" class="inline-field" placeholder="Name" data-min="130" data-max="230" autocomplete="off" data-sync="la_name" required>)</div>
+      </div>
+    </div>
+
+      <div class="attestation-zone"><span>Reserved for physical attestation / notary seal after printing</span></div>
+    </section>
+
+            <div class="form-actions">
+              <div class="form-note">Franking/e-stamp and physical attestation are intentionally left for after printing.</div>
+              <button type="button" class="print-btn" disabled>Print Affidavit</button>
+            </div>
+          </form>
+        </div>
+        
+</div>
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const LEGAL_FONT='"Nimbus Mono PS","Courier New","Liberation Mono","Cousine",monospace';
+function activeWrap(){return $('.form-wrap.active')}
+function activePaper(){return $('.form-wrap.active .paper')}
+
+function printableText(el){
+  if(el.tagName==='SELECT'){
+    const o=el.options[el.selectedIndex];
+    return o && !o.disabled ? o.text.trim() : '';
+  }
+  if(el.type==='date' && el.value){
+    const [y,m,d]=el.value.split('-');
+    return y && m && d ? `${d}-${m}-${y}` : el.value;
+  }
+  return (el.value||'').trim();
+}
+
+function ensurePrintValue(el){
+  let span=el.nextElementSibling;
+  if(!span || !span.classList.contains('print-value')){
+    span=document.createElement('span');
+    span.className='print-value'+(el.classList.contains('line-field')?' line-print':'');
+    el.insertAdjacentElement('afterend',span);
+  }
+  span.textContent=printableText(el);
+  return span;
+}
+
+function fieldTextForMeasure(el){
+  if(el.tagName==='SELECT'){
+    const o=el.options[el.selectedIndex];
+    if(o && !o.disabled) return o.text.trim();
+    const first=[...el.options].find(x=>!x.disabled);
+    return first ? first.text.trim() : 'Select';
+  }
+  return (el.value||el.placeholder||'').trim() || ' ';
+}
+
+function measureControl(el){
+  const cs=getComputedStyle(el);
+  const cv=measureControl.cv||(measureControl.cv=document.createElement('canvas'));
+  const ctx=cv.getContext('2d');
+  ctx.font=`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const text=fieldTextForMeasure(el);
+  const measured=Math.ceil(ctx.measureText(text).width);
+  const max=Number(el.dataset.max|| (el.classList.contains('line-field')?360:205));
+  let min=30;
+  if(el.type==='date') min=106;
+  else if(el.classList.contains('title-select')) min=48;
+  else if(el.classList.contains('rel-select')) min=48;
+  else if(el.classList.contains('choice-select')) min=70;
+  else if(el.classList.contains('line-field')) min=40;
+  let target=Math.max(min,Math.min(max,measured+12));
+  if(el.tagName==='SELECT') target+=14; // room for the screen-only arrow
+  el.style.width=target+'px';
+
+  // Long screen entries stay readable without pushing outside the available line.
+  if(el.tagName==='INPUT' && !el.classList.contains('line-field')){
+    const base=parseFloat(getComputedStyle(el.closest('.paper')).fontSize)*0.75; // px -> pt approx
+    el.style.fontSize='1em';
+    const available=Math.max(24,target-8);
+    if(measured>available){
+      const ratio=available/measured;
+      el.style.fontSize=Math.max(.76,ratio)+'em';
+    }
+  }
+  ensurePrintValue(el);
+}
+
+function resizeAll(root=document){$$('input,select',root).forEach(measureControl)}
+
+function syncValue(el){
+  const k=el.dataset.sync;if(!k)return;
+  $$(`[data-sync="${CSS.escape(k)}"]`).forEach(other=>{
+    if(other===el)return;
+    other.value=el.value;
+    measureControl(other);
+  });
+}
+
+function validate(){
+  const w=activeWrap();if(!w)return;
+  const form=$('form',w),btn=$('.print-btn',w),ok=form.checkValidity();
+  btn.disabled=!ok;
+  $('#completion').textContent=ok?'Ready to print.':'Complete all required fields to enable Print.';
+}
+
+function px(n){return parseFloat(n)||0}
+function contentClearance(p){
+  const closing=$('.closing',p);
+  if(!closing || matchMedia('(max-width:850px)').matches) return 999;
+  const cb=closing.getBoundingClientRect();
+  let lastBottom=p.getBoundingClientRect().top;
+  [...p.children].forEach(el=>{
+    if(el===closing || el.classList.contains('attestation-zone')) return;
+    const pos=getComputedStyle(el).position;
+    if(pos==='absolute'||pos==='fixed') return;
+    lastBottom=Math.max(lastBottom,el.getBoundingClientRect().bottom);
+  });
+  return cb.top-lastBottom;
+}
+
+const FORM_LIMITS={
+  A:{max:13.0,min:9.7}, B:{max:12.0,min:9.5}, C:{max:11.6,min:9.2}, D:{max:11.6,min:9.2}, LOSS:{max:11.25,min:8.9}, LOSS_ALIVE:{max:11.25,min:8.9}
+};
+function optimizePaper(p){
+  if(!p || matchMedia('(max-width:850px)').matches) return;
+  const id=p.dataset.formId,lim=FORM_LIMITS[id]||{max:11.4,min:9.2};
+  let size=lim.max;
+  p.style.setProperty('--legal-size',size+'pt');
+  p.style.setProperty('--legal-line',(id==='LOSS'||id==='LOSS_ALIVE')?'1.20':'1.23');
+  p.style.setProperty('--para-gap',(id==='LOSS'||id==='LOSS_ALIVE')?'2.45mm':id==='C'||id==='D'?'2.65mm':'3mm');
+  resizeAll(p);
+
+  // Fit flowing text above the fixed signature/attestation area.
+  let guard=0;
+  while(contentClearance(p)<7 && size>lim.min && guard++<35){
+    size-=.15;
+    p.style.setProperty('--legal-size',size.toFixed(2)+'pt');
+    if(size<10.2) p.style.setProperty('--legal-line','1.18');
+    if(size<9.7) p.style.setProperty('--para-gap','2.15mm');
+    resizeAll(p);
+  }
+  // If the page has excessive unused space, gently enlarge while maintaining safe clearance.
+  guard=0;
+  while(contentClearance(p)>28 && size<lim.max && guard++<20){
+    const candidate=Math.min(lim.max,size+.1);
+    p.style.setProperty('--legal-size',candidate.toFixed(2)+'pt');
+    resizeAll(p);
+    if(contentClearance(p)<9){p.style.setProperty('--legal-size',size.toFixed(2)+'pt');break;}
+    size=candidate;
+  }
+}
+
+function optimizeAll(){ $$('.paper').forEach(optimizePaper); checkFit(); }
+function checkFit(){
+  const p=activePaper();if(!p || matchMedia('(max-width:850px)').matches)return;
+  const ok=p.scrollHeight<=p.clientHeight+1 && contentClearance(p)>=2;
+  $('#fit').textContent=ok?'A4 single-page layout confirmed.':'Entry length is approaching the single-page limit.';
+}
+
+function showForm(id){
+  $$('.form-wrap').forEach(w=>w.classList.toggle('active',w.dataset.formId===id));
+  $('#formPicker').value=id;
+  resizeAll(activeWrap());
+  requestAnimationFrame(()=>{optimizePaper(activePaper());validate();checkFit();});
+}
+
+function printCurrent(){
+  const w=activeWrap(),form=$('form',w);
+  if(!form.reportValidity())return;
+  resizeAll(w);optimizePaper($('.paper',w));
+  $$('.form-wrap').forEach(x=>x.classList.remove('print-target'));
+  w.classList.add('print-target');
+  window.print();
+}
+
+document.addEventListener('input',e=>{
+  if(e.target.matches('input,select')){
+    syncValue(e.target);measureControl(e.target);validate();
+    requestAnimationFrame(()=>{optimizePaper(activePaper());checkFit();});
+  }
+});
+document.addEventListener('change',e=>{
+  if(e.target.matches('select[data-sync]'))syncValue(e.target);
+  if(e.target.matches('input,select'))measureControl(e.target);
+  validate();requestAnimationFrame(()=>{optimizePaper(activePaper());checkFit();});
+});
+window.addEventListener('resize',()=>{resizeAll(activeWrap());optimizePaper(activePaper());checkFit()});
+window.addEventListener('beforeprint',()=>{resizeAll(activeWrap());optimizePaper(activePaper())});
+window.addEventListener('afterprint',()=>$$('.form-wrap').forEach(w=>w.classList.remove('print-target')));
+document.addEventListener('DOMContentLoaded',()=>{
+  document.documentElement.style.setProperty('--legal-font',LEGAL_FONT);
+  $('#formPicker').addEventListener('change',e=>showForm(e.target.value));
+  $$('.print-btn').forEach(b=>b.addEventListener('click',printCurrent));
+  resizeAll(document);optimizeAll();showForm($('#formPicker').value);
+});
+</script>
+</body>
+</html>
